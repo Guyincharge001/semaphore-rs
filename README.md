@@ -1,4 +1,4 @@
-# 🦀 semaphore-rs
+semaphore = { git = "https://github.com/worldcoin/semaphore-rs# 🦀 semaphore-rs
 
 Rust support library for using [semaphore](https://github.com/appliedzkp/semaphore). It's mostly a Rust rewrite of [zk-kit](https://github.com/appliedzkp/zk-kit), but just focuses on semaphore (for now) and still covers a much smaller scope. It's using [ark-circom](https://github.com/gakonst/ark-circom) under the hood for generating the groth16 proofs.
 
