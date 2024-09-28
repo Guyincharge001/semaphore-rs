@@ -1,45 +1,35 @@
 #![doc = include_str!("../README.md")]
-#![warn(clippy::all, clippy::cargo)]
-// TODO: ark-circom and ethers-core pull in a lot of dependencies, some duplicate.
-#![allow(clippy::multiple_crate_versions)]
 
-pub mod cascading_merkle_tree;
 mod circuit;
 mod field;
-pub mod generic_storage;
 pub mod hash;
 pub mod identity;
-pub mod lazy_merkle_tree;
-pub mod merkle_tree;
-pub mod poseidon;
+pub mod packed_proof;
 pub mod poseidon_tree;
 pub mod protocol;
 pub mod util;
 
-use ark_bn254::Parameters;
+use ark_bn254::Config;
 use ark_ec::bn::Bn;
+pub use semaphore_depth_config::get_supported_depths;
 
 // Export types
 pub use crate::field::{hash_to_field, Field};
 
-pub use semaphore_depth_config::get_supported_depths;
-
-pub type Groth16Proof = ark_groth16::Proof<Bn<Parameters>>;
+pub type Groth16Proof = ark_groth16::Proof<Bn<Config>>;
 pub type EthereumGroth16Proof = ark_circom::ethereum::Proof;
 
 #[allow(dead_code)]
 #[cfg(test)]
 mod test {
-    use crate::{
-        hash_to_field,
-        identity::Identity,
-        poseidon_tree::LazyPoseidonTree,
-        protocol,
-        protocol::{generate_nullifier_hash, generate_proof, verify_proof},
-        Field,
-    };
-    use semaphore_depth_macros::test_all_depths;
     use std::thread::spawn;
+
+    use semaphore_depth_macros::test_all_depths;
+
+    use crate::identity::Identity;
+    use crate::poseidon_tree::LazyPoseidonTree;
+    use crate::protocol::{generate_nullifier_hash, generate_proof, verify_proof};
+    use crate::{hash_to_field, protocol, Field};
 
     #[test]
     fn test_field_serde() {
@@ -135,68 +125,5 @@ mod test {
         let b = spawn(move || test_end_to_end(&mut b_id, b"test", b"signal", depth));
         a.join().unwrap();
         b.join().unwrap();
-    }
-}
-
-#[cfg(feature = "bench")]
-pub mod bench {
-    use crate::{
-        hash_to_field,
-        identity::Identity,
-        poseidon_tree::LazyPoseidonTree,
-        protocol::{generate_proof, generate_witness},
-        Field,
-    };
-    use criterion::Criterion;
-    use semaphore_depth_config::get_supported_depths;
-
-    pub fn group(criterion: &mut Criterion) {
-        for depth in get_supported_depths() {
-            bench_proof(criterion, *depth);
-            bench_witness(criterion, *depth);
-        }
-        crate::lazy_merkle_tree::bench::group(criterion);
-    }
-
-    fn bench_proof(criterion: &mut Criterion, depth: usize) {
-        let leaf = Field::from(0);
-
-        // Create tree
-        let mut hello = *b"hello";
-        let id = Identity::from_secret(&mut hello, None);
-        let mut tree = LazyPoseidonTree::new(depth, leaf).derived();
-        tree = tree.update(0, &id.commitment());
-        let merkle_proof = tree.proof(0);
-
-        // change signal and external_nullifier here
-        let signal_hash = hash_to_field(b"xxx");
-        let external_nullifier_hash = hash_to_field(b"appId");
-
-        criterion.bench_function(&format!("proof_{depth}"), move |b| {
-            b.iter(|| {
-                generate_proof(&id, &merkle_proof, external_nullifier_hash, signal_hash).unwrap();
-            });
-        });
-    }
-
-    fn bench_witness(criterion: &mut Criterion, depth: usize) {
-        let leaf = Field::from(0);
-
-        // Create tree
-        let mut hello = *b"hello";
-        let id = Identity::from_secret(&mut hello, None);
-        let mut tree = LazyPoseidonTree::new(depth, leaf).derived();
-        tree = tree.update(0, &id.commitment());
-        let merkle_proof = tree.proof(0);
-
-        // change signal and external_nullifier here
-        let signal_hash = hash_to_field(b"xxx");
-        let external_nullifier_hash = hash_to_field(b"appId");
-
-        criterion.bench_function(&format!("witness_{depth}"), move |b| {
-            b.iter(|| {
-                generate_witness(&id, &merkle_proof, external_nullifier_hash, signal_hash).unwrap();
-            });
-        });
     }
 }

@@ -1,14 +1,15 @@
 [package]
-name = "semaphore-depth-config"
+name = "keccak"
 version = "0.1.0"
-publish = false
-
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+hasher = { workspace = true }
+tiny-keccak = { workspace = true }
+
 [features]
-depth_16 = []
-depth_20 = []
-depth_30 = []
+default = ["sha3"]
+sha3 = ["tiny-keccak/sha3"]

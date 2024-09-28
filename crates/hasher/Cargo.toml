@@ -1,14 +1,10 @@
 [package]
-name = "semaphore-depth-config"
+name = "hasher"
 version = "0.1.0"
-publish = false
-
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[features]
-depth_16 = []
-depth_20 = []
-depth_30 = []
+[dependencies]
+bytemuck = { workspace = true }

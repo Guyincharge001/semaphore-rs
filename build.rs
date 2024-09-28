@@ -1,7 +1,5 @@
-use std::{
-    fs::{create_dir, create_dir_all, File},
-    path::Path,
-};
+use std::fs::{create_dir, create_dir_all, File};
+use std::path::{absolute, Path, PathBuf};
 
 use color_eyre::eyre::Result;
 
@@ -22,6 +20,24 @@ fn download_and_store_binary(url: &str, path: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
+fn create_arkzkey(path: PathBuf) -> Result<PathBuf> {
+    let mut ark_zkey_path = path.clone();
+    ark_zkey_path.set_extension("arkzkey");
+
+    let (original_proving_key, original_constraint_matrices) =
+        ark_zkey::read_proving_key_and_matrices_from_zkey(
+            path.to_str().expect("Failed to convert path."),
+        )?;
+
+    ark_zkey::convert_zkey(
+        original_proving_key,
+        original_constraint_matrices,
+        ark_zkey_path.to_str().unwrap(),
+    )?;
+
+    Ok(ark_zkey_path)
+}
+
 fn build_circuit(depth: usize) -> Result<()> {
     let out_dir = std::env::var("OUT_DIR").expect("Missing out dir var");
     let base_path = Path::new(&out_dir).join(SEMAPHORE_FILES_PATH);
@@ -31,38 +47,40 @@ fn build_circuit(depth: usize) -> Result<()> {
     }
 
     let depth_str = depth.to_string();
-
     let depth_subfolder = base_path.join(&depth_str);
     if !Path::new(&depth_subfolder).exists() {
         create_dir(&depth_subfolder)?;
     }
 
-    let depth_subfolder = depth_subfolder.display();
-    download_and_store_binary(
-        &format!("{SEMAPHORE_DOWNLOAD_URL}/{depth_str}/semaphore.zkey"),
-        format!("{depth_subfolder}/semaphore.zkey"),
-    )?;
-    download_and_store_binary(
-        &format!("{SEMAPHORE_DOWNLOAD_URL}/{depth_str}/semaphore.wasm"),
-        format!("{depth_subfolder}/semaphore.wasm"),
+    let filename = "semaphore";
+    let download_url = format!("{SEMAPHORE_DOWNLOAD_URL}/{depth_str}/{filename}.zkey");
+    let path = Path::new(&depth_subfolder).join(format!("{filename}.zkey"));
+    download_and_store_binary(&download_url, &path)?;
+    create_arkzkey(path)?;
+
+    let ark_zkey_path = Path::new(&depth_subfolder).join(format!("{filename}.arkzkey"));
+
+    // Compute absolute paths
+    let arkzkey_file = absolute(ark_zkey_path)?;
+    let graph_file = absolute(
+        Path::new("graphs")
+            .join(depth.to_string())
+            .join("graph.bin"),
     )?;
 
-    let zkey_file = base_path.join(&depth_str).join("semaphore.zkey");
-    let wasm_file = base_path.join(&depth_str).join("semaphore.wasm");
-
-    assert!(zkey_file.exists());
-    assert!(wasm_file.exists());
+    assert!(arkzkey_file.exists());
+    assert!(graph_file.exists());
 
     // Export generated paths
     println!(
-        "cargo:rustc-env=BUILD_RS_ZKEY_FILE_{}={}",
+        "cargo:rustc-env=BUILD_RS_ARKZKEY_FILE_{}={}",
         depth,
-        zkey_file.display()
+        arkzkey_file.display()
     );
     println!(
-        "cargo:rustc-env=BUILD_RS_WASM_FILE_{}={}",
+        "cargo:rustc-env=BUILD_RS_GRAPH_FILE_{}={}",
         depth,
-        wasm_file.display()
+        graph_file.display()
     );
 
     Ok(())
